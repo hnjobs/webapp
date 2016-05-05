@@ -54,6 +54,8 @@ public class SearchWidget extends SimplePanel {
     }
 
     private void handleToken() {
+        // if there's a search fragment, do a search
+        // e.g.: when giving someone a link with the search term already in the URL
         if (History.getToken() != null && !History.getToken().isEmpty()) {
             fieldInput.setValue(History.getToken());
 
@@ -65,7 +67,6 @@ public class SearchWidget extends SimplePanel {
         setWidget(uiBinder.createAndBindUi(this));
 
         showRandomSuggestion();
-
     }
 
     private void showRandomSuggestion() {
@@ -116,9 +117,13 @@ public class SearchWidget extends SimplePanel {
         placeholders.add("ad tech company");
         placeholders.add("mobile gaming industry");
 
+        // pick a random search suggestion
         fieldInput.setPlaceholder(placeholders.get(Random.nextInt(placeholders.size() - 1)));
     }
 
+    /**
+     * When the page is done loading, focus the search input field
+     */
     private void focusInput() {
         Scheduler.get().scheduleDeferred(new Scheduler.ScheduledCommand() {
             public void execute() {
@@ -127,6 +132,11 @@ public class SearchWidget extends SimplePanel {
         });
     }
 
+    /**
+     * Enable searching by pressing the "Enter" key
+     *
+     * @param event
+     */
     @UiHandler("fieldInput")
     public void onEnter(KeyDownEvent event) {
         if (event.getNativeKeyCode() == KeyCodes.KEY_ENTER) {
@@ -134,18 +144,27 @@ public class SearchWidget extends SimplePanel {
         }
     }
 
+    /**
+     * Search icon event handler
+     *
+     * @param event
+     */
     @UiHandler("btnSearch")
     public void onSearch(ClickEvent event) {
         String value = fieldInput.getValue().trim();
 
+        // sanity check
         if (value.isEmpty()) {
             return;
         }
 
+        // save the search query in the URL fragment
         History.newItem(value);
 
+        // indicate to the user that we haven't frozen
         showProgressBar();
 
+        // run the search query on the server
         RPC.service.search(value, new AsyncCallback<SearchResultRPC>() {
 
             @Override
@@ -155,27 +174,11 @@ public class SearchWidget extends SimplePanel {
 
             @Override
             public void onSuccess(SearchResultRPC result) {
-                flow.clear();
-                timer.cancel();
-                progressBar.setPercent(100);
-
-                for (JobRPC job : result.jobs) {
-                    JobWidget w = new JobWidget(job);
-
-                    flow.add(w);
-
-                    Animate.animate(w, Animation.FADE_IN_DOWN);
-                }
-
-                if (result.jobs.isEmpty()) {
-                    Jumbotron jumbo = new Jumbotron();
-                    jumbo.add(new Heading(HeadingSize.H3, "No results"));
-
-                    flow.add(jumbo);
-                }
+                onSearchResults(result);
             }
         });
 
+        // fake progress bar ... progress
         timer = new Timer() {
             @Override
             public void run() {
@@ -188,6 +191,32 @@ public class SearchWidget extends SimplePanel {
         };
 
         timer.scheduleRepeating(10);
+    }
+
+    private void onSearchResults(SearchResultRPC result) {
+        // stop the progress bar
+        timer.cancel();
+        progressBar.setPercent(100);
+
+        // clear previous results
+        flow.clear();
+
+        // load results
+        for (JobRPC job : result.jobs) {
+            JobWidget w = new JobWidget(job);
+
+            flow.add(w);
+
+            Animate.animate(w, Animation.FADE_IN_DOWN);
+        }
+
+        // prevent an empty page when there are no search results
+        if (result.jobs.isEmpty()) {
+            Jumbotron jumbo = new Jumbotron();
+            jumbo.add(new Heading(HeadingSize.H3, "No results"));
+
+            flow.add(jumbo);
+        }
     }
 
     private void showProgressBar() {

@@ -42,16 +42,22 @@ public class ServiceImpl extends RemoteServiceServlet implements Service {
     @Override
     public SearchResultRPC search(String query) {
         try {
+            // init connection to elasticsearch
             initEs();
 
+            // get results
             SearchResultRPC results = getResults(query);
 
+            // log query for relevance analysis
             log(query, results.jobs.size(), results.duration);
 
+            // return results to the client
             return results;
         } catch (UnknownHostException e) {
+            // todo
             e.printStackTrace();
         } finally {
+            // cleanup
             client.close();
         }
 
@@ -116,6 +122,12 @@ public class ServiceImpl extends RemoteServiceServlet implements Service {
         return job;
     }
 
+    /**
+     * Returns the job post with the search query highlighted
+     *
+     * @param hit
+     * @return
+     */
     private String getBody(SearchHit hit) {
         Text[] fragments = hit.getHighlightFields().get(FIELD_BODY_HTML).getFragments();
 
