@@ -16,6 +16,14 @@
                             </b:InputGroupButton>
                         </b:InputGroup>
                     </b:PanelBody>
+                    <b:PanelFooter ui:field="panelSuggest" visible="false">
+                        <b:Row>
+                            <b:Column size="LG_12">
+                                <b:Heading size="H5" text="Did you mean:"/>
+                                <b:Button ui:field="fieldSuggest" type="WARNING"/>
+                            </b:Column>
+                        </b:Row>
+                    </b:PanelFooter>
                 </b:Panel>
             </b:Column>
         </b:Row>

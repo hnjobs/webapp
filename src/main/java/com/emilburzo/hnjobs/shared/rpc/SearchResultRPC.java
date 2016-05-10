@@ -6,7 +6,9 @@ import java.util.List;
 
 public class SearchResultRPC implements Serializable {
 
+    public String suggestion;
     public List<JobRPC> jobs = new ArrayList<>();
 
     public long duration;
+
 }

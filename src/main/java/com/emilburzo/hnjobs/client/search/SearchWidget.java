@@ -41,6 +41,10 @@ public class SearchWidget extends SimplePanel {
     Button btnSearch;
     @UiField
     FlowPanel flow;
+    @UiField
+    PanelFooter panelSuggest;
+    @UiField
+    Button fieldSuggest;
 
     private ProgressBar progressBar;
     private Timer timer;
@@ -53,20 +57,29 @@ public class SearchWidget extends SimplePanel {
         handleToken();
     }
 
-    private void handleToken() {
-        // if there's a search fragment, do a search
-        // e.g.: when giving someone a link with the search term already in the URL
-        if (History.getToken() != null && !History.getToken().isEmpty()) {
-            fieldInput.setValue(History.getToken());
-
-            onSearch(null);
-        }
-    }
-
     private void initUi() {
         setWidget(uiBinder.createAndBindUi(this));
 
         showRandomSuggestion();
+    }
+
+    /**
+     * When the page is done loading, focus the search input field
+     */
+    private void focusInput() {
+        Scheduler.get().scheduleDeferred(new Scheduler.ScheduledCommand() {
+            public void execute() {
+                fieldInput.setFocus(true);
+            }
+        });
+    }
+
+    private void handleToken() {
+        // if there's a search fragment, do a search
+        // e.g.: when giving someone a link with the search term already in the URL
+        if (History.getToken() != null && !History.getToken().isEmpty()) {
+            doSearch(History.getToken());
+        }
     }
 
     private void showRandomSuggestion() {
@@ -121,15 +134,15 @@ public class SearchWidget extends SimplePanel {
         fieldInput.setPlaceholder(placeholders.get(Random.nextInt(placeholders.size() - 1)));
     }
 
-    /**
-     * When the page is done loading, focus the search input field
-     */
-    private void focusInput() {
-        Scheduler.get().scheduleDeferred(new Scheduler.ScheduledCommand() {
-            public void execute() {
-                fieldInput.setFocus(true);
-            }
-        });
+    @UiHandler("fieldSuggest")
+    public void onSuggestion(ClickEvent event) {
+        doSearch(fieldSuggest.getText());
+    }
+
+    private void doSearch(String query) {
+        fieldInput.setValue(query);
+
+        onSearch(null);
     }
 
     /**
@@ -163,6 +176,9 @@ public class SearchWidget extends SimplePanel {
 
         // indicate to the user that we haven't frozen
         showProgressBar();
+
+        // hide suggestion area
+        panelSuggest.setVisible(false);
 
         // run the search query on the server
         RPC.service.search(value, new AsyncCallback<SearchResultRPC>() {
@@ -200,6 +216,12 @@ public class SearchWidget extends SimplePanel {
 
         // clear previous results
         flow.clear();
+
+        // search suggestions
+        if (result.suggestion != null) {
+            fieldSuggest.setText(result.suggestion);
+            panelSuggest.setVisible(true);
+        }
 
         // load results
         for (JobRPC job : result.jobs) {

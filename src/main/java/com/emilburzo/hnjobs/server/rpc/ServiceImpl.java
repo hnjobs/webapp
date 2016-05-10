@@ -17,6 +17,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.SimpleQueryStringFlag;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -37,6 +38,10 @@ public class ServiceImpl extends RemoteServiceServlet implements Service {
     private static final String FIELD_AUTHOR = "author";
     private static final String FIELD_BODY_HTML = "bodyHtml";
     private static final String FIELD_SCORE = "_score";
+
+    private static final int MAX_SUGGESTIONS = 1;
+    private static final int SEARCH_PREVIOUS_MONTHS = 2;
+    private static final int MAX_SEARCH_RESULTS = 100;
 
     private TransportClient client;
 
@@ -87,20 +92,33 @@ public class ServiceImpl extends RemoteServiceServlet implements Service {
                 )
                 .addSort(FIELD_SCORE, SortOrder.DESC)
                 .addSort(FIELD_TIMESTAMP, SortOrder.DESC)
+                .addSuggestion(new PhraseSuggestionBuilder("default")
+                                .field(FIELD_BODY_HTML)
+                                .text(query)
+                                .size(MAX_SUGGESTIONS)
+                )
                 .addHighlightedField(FIELD_BODY_HTML, 0, 0)
-                .setPostFilter(QueryBuilders.rangeQuery(FIELD_TIMESTAMP).gte(getMonthsAgo(2)))
-                .setFrom(0).setSize(100).setExplain(false)
+                .setPostFilter(QueryBuilders.rangeQuery(FIELD_TIMESTAMP).gte(getMonthsAgo(SEARCH_PREVIOUS_MONTHS)))
+                .setFrom(0).setSize(MAX_SEARCH_RESULTS).setExplain(false)
                 .execute()
                 .actionGet();
 
+        // suggested search
+        try {
+            // todo sanity checks instead of brute force
+            rpc.suggestion = response.getSuggest().iterator().next().getEntries().get(0).getOptions().get(0).getText().string();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        // search hits
         for (SearchHit hit : response.getHits()) {
             JobRPC job = getResult(hit);
             rpc.jobs.add(job);
         }
 
-        long stop = new Date().getTime();
-
-        rpc.duration = (stop - start);
+        // benchmark query
+        rpc.duration = (System.currentTimeMillis() - start);
 
         return rpc;
     }
