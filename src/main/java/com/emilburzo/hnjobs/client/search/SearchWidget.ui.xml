@@ -3,8 +3,8 @@
 
     <b:Container fluid="true">
         <b:Row>
-            <b:Column size="MD_12">
-                <b:Panel>
+            <b:Column size="XS_12,SM_8,MD_6,LG_6" offset="XS_0,SM_2,MD_3,LG_3">
+                <b:Panel type="PRIMARY">
                     <b:PanelHeader>
                         <b:Heading size="H3" text='Search the HN "Who is hiring?" threads'/>
                     </b:PanelHeader>
@@ -28,7 +28,7 @@
             </b:Column>
         </b:Row>
         <b:Row>
-            <b:Column size="MD_12">
+            <b:Column size="XS_12,SM_10,MD_10,LG_8" offset="XS_0,SM_1,MD_1,LG_2">
                 <g:FlowPanel ui:field="flow"/>
             </b:Column>
         </b:Row>
