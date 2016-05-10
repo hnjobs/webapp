@@ -14,6 +14,7 @@ import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.SimpleQueryStringFlag;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 
@@ -80,7 +81,10 @@ public class ServiceImpl extends RemoteServiceServlet implements Service {
         SearchResponse response = client.prepareSearch(INDEX_HNJOBS)
                 .setTypes(TYPE_JOB)
                 .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-                .setQuery(QueryBuilders.matchQuery(FIELD_BODY_HTML, query))
+                .setQuery(QueryBuilders.simpleQueryStringQuery(query)
+                                .field(FIELD_BODY_HTML)
+                                .flags(SimpleQueryStringFlag.ALL)
+                )
                 .addSort(FIELD_SCORE, SortOrder.DESC)
                 .addSort(FIELD_TIMESTAMP, SortOrder.DESC)
                 .addHighlightedField(FIELD_BODY_HTML, 0, 0)
