@@ -257,4 +257,8 @@ public class SearchWidget extends SimplePanel {
 
         flow.add(progress);
     }
+
+    public void onHistoryTokenChanged() {
+        handleToken();
+    }
 }
