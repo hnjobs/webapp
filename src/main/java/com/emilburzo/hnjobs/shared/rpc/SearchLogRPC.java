@@ -1,10 +1,13 @@
 package com.emilburzo.hnjobs.shared.rpc;
 
+import java.util.Date;
+
 public class SearchLogRPC {
 
     public String query;
     public int results;
     public long durationMs;
+    public long timestamp = new Date().getTime();
 
     public SearchLogRPC() {
     }
