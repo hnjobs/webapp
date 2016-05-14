@@ -148,6 +148,14 @@ public class SearchManager {
      * @return
      */
     private String getBody(SearchHit hit) {
+        if (hit == null || hit.getSource() == null) {
+            return "";
+        }
+
+        if (hit.getHighlightFields() == null || hit.getHighlightFields().get(FIELD_BODY_HTML) == null) {
+            return hit.getSource().get(FIELD_BODY_HTML).toString();
+        }
+
         Text[] fragments = hit.getHighlightFields().get(FIELD_BODY_HTML).getFragments();
 
         String body = "";
