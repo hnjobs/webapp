@@ -105,7 +105,7 @@ public class SearchManager {
             // todo sanity checks instead of brute force
             rpc.suggestion = response.getSuggest().iterator().next().getEntries().get(0).getOptions().get(0).getText().string();
         } catch (Exception e) {
-            e.printStackTrace();
+//            e.printStackTrace();
         }
 
         // search hits
