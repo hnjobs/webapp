@@ -17,6 +17,9 @@
     <!-- <inherits name='com.google.gwt.user.theme.chrome.Chrome'/> -->
     <!-- <inherits name='com.google.gwt.user.theme.dark.Dark'/>     -->
 
+    <!-- Fallback User Agent for use by crawlers -->
+    <set-property-fallback name="user.agent" value="gecko1_8"/>
+
     <!-- Other module inherits                                      -->
     <inherits name="org.gwtbootstrap3.GwtBootstrap3"/>
     <inherits name="org.gwtbootstrap3.extras.animate.Animate"/>
