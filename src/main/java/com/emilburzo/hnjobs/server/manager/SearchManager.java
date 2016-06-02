@@ -36,7 +36,7 @@ public class SearchManager {
     private static final String FIELD_SCORE = "_score";
 
     private static final int MAX_SUGGESTIONS = 1;
-    private static final int SEARCH_PREVIOUS_MONTHS = 2;
+    private static final int SEARCH_PREVIOUS_DAYS = 45;
     private static final int MAX_SEARCH_RESULTS = 100;
 
     private Logger log = Logger.getLogger(getClass().getSimpleName());
@@ -95,7 +95,7 @@ public class SearchManager {
                                 .size(MAX_SUGGESTIONS)
                 )
                 .addHighlightedField(FIELD_BODY_HTML, 0, 0)
-                .setPostFilter(QueryBuilders.rangeQuery(FIELD_TIMESTAMP).gte(getMonthsAgo(SEARCH_PREVIOUS_MONTHS)))
+                .setPostFilter(QueryBuilders.rangeQuery(FIELD_TIMESTAMP).gte(getDaysAgo(SEARCH_PREVIOUS_DAYS)))
                 .setFrom(0).setSize(MAX_SEARCH_RESULTS).setExplain(false)
                 .execute()
                 .actionGet();
@@ -120,9 +120,9 @@ public class SearchManager {
         return rpc;
     }
 
-    private long getMonthsAgo(int months) {
+    private long getDaysAgo(int days) {
         Calendar cal = Calendar.getInstance();
-        cal.add(Calendar.MONTH, -months);
+        cal.add(Calendar.DAY_OF_YEAR, -days);
 
         return cal.getTimeInMillis();
     }
