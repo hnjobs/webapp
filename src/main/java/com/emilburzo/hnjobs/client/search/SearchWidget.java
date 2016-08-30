@@ -92,48 +92,17 @@ public class SearchWidget extends SimplePanel {
         placeholders.add("\"Technical Support Engineer\"");
         placeholders.add("\"UI Developer\" | \"UX Developer\"");
         placeholders.add("\"Full Stack\" Developer");
-        placeholders.add("Technical Manager");
-        placeholders.add("Frontend Developer");
-        placeholders.add("Backend Developer");
-        placeholders.add("Senior Software Engineer");
-        placeholders.add("iOS Developer");
-        placeholders.add("Data Scientist");
-        placeholders.add("Product Owner");
-        placeholders.add("Mobile App Designer");
-        placeholders.add("Lead Front End Engineer");
-        placeholders.add("DevOps Engineer");
-        placeholders.add("US only");
         placeholders.add("\"New York\"|NY");
         placeholders.add("EU timezones~2");
-        placeholders.add("Android Engineer");
-        placeholders.add("Backed by investors");
-        placeholders.add("social VR");
-        placeholders.add("healthcare startup");
         placeholders.add("+remote +only company");
         placeholders.add("distributed~2 team");
-        placeholders.add("healthcare");
-        placeholders.add("onsite Rails");
-        placeholders.add("VISA tranfers ok");
         placeholders.add("VISA sponsorship~5");
         placeholders.add("Information Security -remote");
         placeholders.add("Android developer -hybrid");
-        placeholders.add("3D Developer");
-        placeholders.add("fleet management");
-        placeholders.add("self-driving cars");
-        placeholders.add("voice fraud prevention");
-        placeholders.add("fast growing startup");
-        placeholders.add("Electrical Engineer");
         placeholders.add("system administration -windows");
-        placeholders.add("open-source");
-        placeholders.add("experienced search engineer");
-        placeholders.add("Hadoop Developer");
-        placeholders.add("best places to work");
-        placeholders.add("marketing platform");
-        placeholders.add("ad tech company");
-        placeholders.add("mobile gaming industry");
 
         // pick a random search suggestion
-        fieldInput.setPlaceholder(placeholders.get(Random.nextInt(placeholders.size() - 1)));
+        fieldInput.setPlaceholder(placeholders.get(Random.nextInt(placeholders.size())));
     }
 
     @UiHandler("fieldSuggest")
