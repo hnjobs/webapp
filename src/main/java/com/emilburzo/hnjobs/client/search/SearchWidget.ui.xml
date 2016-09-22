@@ -7,7 +7,7 @@
             <b:Column size="XS_12,SM_8,MD_6,LG_6" offset="XS_0,SM_2,MD_3,LG_3">
                 <b:Panel type="PRIMARY">
                     <b:PanelHeader>
-                        <b:Heading size="H3" text="Search this month's 'Who is hiring?' thread"/>
+                        <b:Heading size="H3" text="Search the last 'Who is hiring?' thread"/>
                     </b:PanelHeader>
                     <b:PanelBody>
                         <b:InputGroup>
