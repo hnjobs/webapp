@@ -5,17 +5,21 @@ import com.emilburzo.hnjobs.shared.rpc.SearchLogRPC;
 import com.emilburzo.hnjobs.shared.rpc.SearchResultRPC;
 import com.google.gson.Gson;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.SimpleQueryStringFlag;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
+import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.search.suggest.SuggestBuilders;
+import org.elasticsearch.transport.client.PreBuiltTransportClient;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -68,8 +72,8 @@ public class SearchManager {
     private void log(String query, int results, long durationMs) {
         SearchLogRPC log = new SearchLogRPC(query, results, durationMs);
 
-        IndexResponse response = client.prepareIndex(INDEX_HNJOBS, TYPE_SEARCH)
-                .setSource(new Gson().toJson(log))
+        client.prepareIndex(INDEX_HNJOBS, TYPE_SEARCH)
+                .setSource(new Gson().toJson(log), XContentType.JSON)
                 .get();
     }
 
@@ -87,12 +91,8 @@ public class SearchManager {
                 )
                 .addSort(FIELD_SCORE, SortOrder.DESC)
                 .addSort(FIELD_TIMESTAMP, SortOrder.DESC)
-                .addSuggestion(new PhraseSuggestionBuilder("default")
-                                .field(FIELD_BODY_HTML)
-                                .text(query)
-                                .size(MAX_SUGGESTIONS)
-                )
-                .addHighlightedField(FIELD_BODY_HTML, 0, 0)
+                .suggest(new SuggestBuilder().addSuggestion(FIELD_BODY_HTML, SuggestBuilders.phraseSuggestion(FIELD_BODY_HTML).text(query).size(MAX_SUGGESTIONS)))
+                .highlighter(new HighlightBuilder().field(FIELD_BODY_HTML).fragmentSize(0).numOfFragments(0))
                 .setFrom(0).setSize(MAX_SEARCH_RESULTS).setExplain(false)
                 .execute()
                 .actionGet();
@@ -157,6 +157,7 @@ public class SearchManager {
     }
 
     private void initEs() throws UnknownHostException {
-        client = TransportClient.builder().build().addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName("hnjobs"), 9300));
+        client = new PreBuiltTransportClient(Settings.EMPTY)
+                .addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName("hnjobs"), 9300));
     }
 }
