@@ -24,6 +24,9 @@ import java.util.logging.Logger;
 
 public class SearchManager {
 
+    private static final String ELASTICSEARCH_HOST = "ELASTICSEARCH_HOST";
+    private static final String ELASTICSEARCH_PORT = "ELASTICSEARCH_PORT";
+
     private static final String INDEX_HNJOBS = "hnjobs";
     private static final String TYPE_JOB = "job";
     private static final String TYPE_SEARCH = "search";
@@ -157,6 +160,9 @@ public class SearchManager {
     }
 
     private void initEs() throws UnknownHostException {
-        client = TransportClient.builder().build().addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName("hnjobs"), 9300));
+        client = TransportClient.builder().build().addTransportAddress(new InetSocketTransportAddress(
+                InetAddress.getByName(System.getenv().getOrDefault(ELASTICSEARCH_HOST, "hnjobs")),
+                Integer.parseInt(System.getenv().getOrDefault(ELASTICSEARCH_PORT, "9300")))
+        );
     }
 }
