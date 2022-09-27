@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hnjobs-webapp
+  labels:
+    app: hnjobs-webapp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hnjobs-webapp
+  template:
+    metadata:
+      labels:
+        app: hnjobs-webapp
+    spec:
+      containers:
+        - name: hnjobs-webapp
+          image: emilburzo/hnjobs-webapp:latest
+          env:
+            - name: ELASTICSEARCH_HOST
+              value: "192.168.0.11"
+            - name: ELASTICSEARCH_PORT
+              value: "9300"
+          ports:
+            - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hnjobs-webapp
+  labels:
+    run: hnjobs-webapp
+spec:
+  ports:
+    - port: 8080
+      protocol: TCP
+  selector:
+    app: hnjobs-webapp
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hnjobs-webapp
+spec:
+  rules:
+  - host: hnjobs.emilburzo.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: hnjobs-webapp
+            port:
+                number: 8080
