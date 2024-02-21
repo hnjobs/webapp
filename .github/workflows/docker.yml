@@ -10,6 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+      - name: Set SHORT_SHA
+        run: echo "SHORT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
       - name: Set up JDK 8
         uses: actions/setup-java@v2
         with:
@@ -33,4 +35,4 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: emilburzo/hnjobs-webapp:latest,emilburzo/hnjobs-webapp:${{ github.run_number }}
+          tags: emilburzo/hnjobs-webapp:latest,emilburzo/hnjobs-webapp:${{ github.run_number }},emilburzo/hnjobs-webapp:${{ env.SHORT_SHA }}

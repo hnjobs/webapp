@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: hnjobs-webapp
-          image: emilburzo/hnjobs-webapp:latest
+          image: emilburzo/hnjobs-webapp:SHORT_SHA
           env:
             - name: ELASTICSEARCH_HOST
               value: "192.168.0.4"
