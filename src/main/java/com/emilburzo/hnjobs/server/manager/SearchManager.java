@@ -4,21 +4,26 @@ import com.emilburzo.hnjobs.shared.rpc.JobRPC;
 import com.emilburzo.hnjobs.shared.rpc.SearchLogRPC;
 import com.emilburzo.hnjobs.shared.rpc.SearchResultRPC;
 import com.google.gson.Gson;
+import org.apache.http.HttpHost;
+import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.SimpleQueryStringFlag;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 
-import java.net.InetAddress;
-import java.net.UnknownHostException;
+import java.io.IOException;
 import java.util.Date;
 import java.util.logging.Logger;
 
@@ -42,7 +47,7 @@ public class SearchManager {
 
     private Logger log = Logger.getLogger(getClass().getSimpleName());
 
-    private TransportClient client;
+    private RestHighLevelClient client;
 
     public SearchResultRPC search(String query) {
         try {
@@ -57,12 +62,16 @@ public class SearchManager {
 
             // return results to the client
             return results;
-        } catch (UnknownHostException e) {
+        } catch (IOException e) {
             // todo
             e.printStackTrace();
         } finally {
-            // cleanup
-            client.close();
+            try {
+                // cleanup
+                client.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
 
         return null;
@@ -71,9 +80,13 @@ public class SearchManager {
     private void log(String query, int results, long durationMs) {
         SearchLogRPC log = new SearchLogRPC(query, results, durationMs);
 
-        IndexResponse response = client.prepareIndex(INDEX_HNJOBS, TYPE_SEARCH)
-                .setSource(new Gson().toJson(log))
-                .get();
+        try {
+            IndexRequest request = new IndexRequest(INDEX_HNJOBS)
+                    .source(new Gson().toJson(log), XContentType.JSON);
+            IndexResponse response = client.index(request, RequestOptions.DEFAULT);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     private SearchResultRPC getResults(String query) {
@@ -81,57 +94,75 @@ public class SearchManager {
 
         SearchResultRPC rpc = new SearchResultRPC();
 
-        SearchResponse response = client.prepareSearch(INDEX_HNJOBS)
-                .setTypes(TYPE_JOB)
-                .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-                .setQuery(QueryBuilders.simpleQueryStringQuery(query)
-                                .field(FIELD_BODY_HTML)
-                                .flags(SimpleQueryStringFlag.ALL)
-                )
-                .addSort(FIELD_SCORE, SortOrder.DESC)
-                .addSort(FIELD_TIMESTAMP, SortOrder.DESC)
-                .addSuggestion(new PhraseSuggestionBuilder("default")
-                                .field(FIELD_BODY_HTML)
-                                .text(query)
-                                .size(MAX_SUGGESTIONS)
-                )
-                .addHighlightedField(FIELD_BODY_HTML, 0, 0)
-                .setFrom(0).setSize(MAX_SEARCH_RESULTS).setExplain(false)
-                .execute()
-                .actionGet();
-
-        // suggested search
         try {
-            // todo sanity checks instead of brute force
-            rpc.suggestion = response.getSuggest().iterator().next().getEntries().get(0).getOptions().get(0).getText().string();
-        } catch (Exception e) {
-//            e.printStackTrace();
-        }
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+            searchSourceBuilder.query(QueryBuilders.simpleQueryStringQuery(query)
+                            .field(FIELD_BODY_HTML)
+            );
+            searchSourceBuilder.sort(FIELD_SCORE, SortOrder.DESC);
+            searchSourceBuilder.sort(FIELD_TIMESTAMP, SortOrder.DESC);
 
-        // search hits
-        for (SearchHit hit : response.getHits()) {
-            JobRPC job = getResult(hit);
-            rpc.jobs.add(job);
-        }
+            SuggestBuilder suggestBuilder = new SuggestBuilder();
+            suggestBuilder.addSuggestion("default",
+                    new PhraseSuggestionBuilder(FIELD_BODY_HTML)
+                            .text(query)
+                            .size(MAX_SUGGESTIONS)
+            );
+            searchSourceBuilder.suggest(suggestBuilder);
 
-        // benchmark query
-        rpc.duration = (System.currentTimeMillis() - start);
+            searchSourceBuilder.highlighter(new org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder()
+                    .field(FIELD_BODY_HTML)
+            );
+            searchSourceBuilder.from(0);
+            searchSourceBuilder.size(MAX_SEARCH_RESULTS);
+            searchSourceBuilder.explain(false);
+
+            SearchRequest searchRequest = new SearchRequest(INDEX_HNJOBS);
+            searchRequest.source(searchSourceBuilder);
+
+            SearchResponse response = client.search(searchRequest, RequestOptions.DEFAULT);
+
+            // suggested search
+            try {
+                // todo sanity checks instead of brute force
+                rpc.suggestion = response.getSuggest().iterator().next().getEntries().get(0).getOptions().get(0).getText().string();
+            } catch (Exception e) {
+    //            e.printStackTrace();
+            }
+
+            // search hits
+            for (SearchHit hit : response.getHits()) {
+                JobRPC job = getResult(hit);
+                rpc.jobs.add(job);
+            }
+
+            // benchmark query
+            rpc.duration = (System.currentTimeMillis() - start);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
 
         return rpc;
     }
 
     private JobRPC getResult(SearchHit hit) {
-        GetResponse response = client.prepareGet(INDEX_HNJOBS, TYPE_JOB, hit.getId()).get();
+        try {
+            GetRequest getRequest = new GetRequest(INDEX_HNJOBS, hit.getId());
+            GetResponse response = client.get(getRequest, RequestOptions.DEFAULT);
 
-        JobRPC job = new JobRPC();
+            JobRPC job = new JobRPC();
 
-        job.id = hit.getId();
-        job.timestamp = Long.valueOf(response.getSource().get(FIELD_TIMESTAMP).toString());
-        job.author = response.getSource().get(FIELD_AUTHOR).toString();
-        job.bodyHtml = getBody(hit);
-        job.score = hit.getScore();
+            job.id = hit.getId();
+            job.timestamp = Long.valueOf(response.getSource().get(FIELD_TIMESTAMP).toString());
+            job.author = response.getSource().get(FIELD_AUTHOR).toString();
+            job.bodyHtml = getBody(hit);
+            job.score = hit.getScore();
 
-        return job;
+            return job;
+        } catch (IOException e) {
+            e.printStackTrace();
+            return null;
+        }
     }
 
     /**
@@ -159,10 +190,14 @@ public class SearchManager {
         return body;
     }
 
-    private void initEs() throws UnknownHostException {
-        client = TransportClient.builder().build().addTransportAddress(new InetSocketTransportAddress(
-                InetAddress.getByName(System.getenv().getOrDefault(ELASTICSEARCH_HOST, "hnjobs")),
-                Integer.parseInt(System.getenv().getOrDefault(ELASTICSEARCH_PORT, "9300")))
+    private void initEs() {
+        String host = System.getenv().getOrDefault(ELASTICSEARCH_HOST, "localhost");
+        int port = Integer.parseInt(System.getenv().getOrDefault(ELASTICSEARCH_PORT, "9200"));
+
+        client = new RestHighLevelClient(
+                RestClient.builder(
+                        new HttpHost(host, port, "http")
+                )
         );
     }
 }
