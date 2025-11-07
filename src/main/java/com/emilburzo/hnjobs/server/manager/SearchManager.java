@@ -1,25 +1,31 @@
 package com.emilburzo.hnjobs.server.manager;
 
+import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import co.elastic.clients.elasticsearch._types.SortOrder;
+import co.elastic.clients.elasticsearch._types.query_dsl.Query;
+import co.elastic.clients.elasticsearch.core.GetRequest;
+import co.elastic.clients.elasticsearch.core.GetResponse;
+import co.elastic.clients.elasticsearch.core.IndexRequest;
+import co.elastic.clients.elasticsearch.core.IndexResponse;
+import co.elastic.clients.elasticsearch.core.SearchRequest;
+import co.elastic.clients.elasticsearch.core.SearchResponse;
+import co.elastic.clients.elasticsearch.core.search.Hit;
+import co.elastic.clients.elasticsearch.core.search.Suggester;
+import co.elastic.clients.json.jackson.JacksonJsonpMapper;
+import co.elastic.clients.transport.rest_client.RestClientTransport;
 import com.emilburzo.hnjobs.shared.rpc.JobRPC;
 import com.emilburzo.hnjobs.shared.rpc.SearchLogRPC;
 import com.emilburzo.hnjobs.shared.rpc.SearchResultRPC;
 import com.google.gson.Gson;
-import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.client.transport.TransportClient;
-import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.SimpleQueryStringFlag;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
+import org.apache.http.HttpHost;
+import org.elasticsearch.client.RestClient;
 
-import java.net.InetAddress;
-import java.net.UnknownHostException;
+import java.io.IOException;
+import java.io.StringReader;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.logging.Logger;
 
 public class SearchManager {
@@ -28,8 +34,6 @@ public class SearchManager {
     private static final String ELASTICSEARCH_PORT = "ELASTICSEARCH_PORT";
 
     private static final String INDEX_HNJOBS = "hnjobs";
-    private static final String TYPE_JOB = "job";
-    private static final String TYPE_SEARCH = "search";
 
     private static final String FIELD_BODY = "body";
     private static final String FIELD_TIMESTAMP = "timestamp";
@@ -42,7 +46,8 @@ public class SearchManager {
 
     private Logger log = Logger.getLogger(getClass().getSimpleName());
 
-    private TransportClient client;
+    private ElasticsearchClient client;
+    private RestClient restClient;
 
     public SearchResultRPC search(String query) {
         try {
@@ -57,59 +62,95 @@ public class SearchManager {
 
             // return results to the client
             return results;
-        } catch (UnknownHostException e) {
-            // todo
+        } catch (Exception e) {
+            log.severe("Error during search: " + e.getMessage());
             e.printStackTrace();
         } finally {
             // cleanup
-            client.close();
+            try {
+                if (restClient != null) {
+                    restClient.close();
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
 
         return null;
     }
 
     private void log(String query, int results, long durationMs) {
-        SearchLogRPC log = new SearchLogRPC(query, results, durationMs);
+        SearchLogRPC logEntry = new SearchLogRPC(query, results, durationMs);
 
-        IndexResponse response = client.prepareIndex(INDEX_HNJOBS, TYPE_SEARCH)
-                .setSource(new Gson().toJson(log))
-                .get();
+        try {
+            Map<String, Object> document = new HashMap<>();
+            document.put("query", query);
+            document.put("results", results);
+            document.put("durationMs", durationMs);
+
+            IndexResponse response = client.index(i -> i
+                    .index(INDEX_HNJOBS)
+                    .document(document)
+            );
+        } catch (IOException e) {
+            log.warning("Failed to log search: " + e.getMessage());
+        }
     }
 
-    private SearchResultRPC getResults(String query) {
+    private SearchResultRPC getResults(String query) throws IOException {
         long start = new Date().getTime();
 
         SearchResultRPC rpc = new SearchResultRPC();
 
-        SearchResponse response = client.prepareSearch(INDEX_HNJOBS)
-                .setTypes(TYPE_JOB)
-                .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-                .setQuery(QueryBuilders.simpleQueryStringQuery(query)
-                                .field(FIELD_BODY_HTML)
-                                .flags(SimpleQueryStringFlag.ALL)
-                )
-                .addSort(FIELD_SCORE, SortOrder.DESC)
-                .addSort(FIELD_TIMESTAMP, SortOrder.DESC)
-                .addSuggestion(new PhraseSuggestionBuilder("default")
-                                .field(FIELD_BODY_HTML)
-                                .text(query)
-                                .size(MAX_SUGGESTIONS)
-                )
-                .addHighlightedField(FIELD_BODY_HTML, 0, 0)
-                .setFrom(0).setSize(MAX_SEARCH_RESULTS).setExplain(false)
-                .execute()
-                .actionGet();
+        // Build the search query
+        SearchResponse<Map> response = client.search(s -> s
+                        .index(INDEX_HNJOBS)
+                        .query(q -> q
+                                .simpleQueryString(sqs -> sqs
+                                        .query(query)
+                                        .fields(FIELD_BODY_HTML)
+                                )
+                        )
+                        .sort(so -> so
+                                .score(sc -> sc.order(SortOrder.Desc))
+                        )
+                        .sort(so -> so
+                                .field(f -> f
+                                        .field(FIELD_TIMESTAMP)
+                                        .order(SortOrder.Desc)
+                                )
+                        )
+                        .suggest(sugg -> sugg
+                                .suggesters("default", sg -> sg
+                                        .text(query)
+                                        .phrase(p -> p
+                                                .field(FIELD_BODY_HTML)
+                                                .size(MAX_SUGGESTIONS)
+                                        )
+                                )
+                        )
+                        .highlight(h -> h
+                                .fields(FIELD_BODY_HTML, hf -> hf)
+                        )
+                        .from(0)
+                        .size(MAX_SEARCH_RESULTS),
+                Map.class
+        );
 
         // suggested search
         try {
-            // todo sanity checks instead of brute force
-            rpc.suggestion = response.getSuggest().iterator().next().getEntries().get(0).getOptions().get(0).getText().string();
+            if (response.suggest() != null && response.suggest().get("default") != null) {
+                var suggestions = response.suggest().get("default");
+                if (!suggestions.isEmpty() && !suggestions.get(0).phrase().options().isEmpty()) {
+                    rpc.suggestion = suggestions.get(0).phrase().options().get(0).text();
+                }
+            }
         } catch (Exception e) {
-//            e.printStackTrace();
+            // No suggestion available
         }
 
         // search hits
-        for (SearchHit hit : response.getHits()) {
+        for (Hit<Map> hit : response.hits().hits()) {
             JobRPC job = getResult(hit);
             rpc.jobs.add(job);
         }
@@ -120,16 +161,22 @@ public class SearchManager {
         return rpc;
     }
 
-    private JobRPC getResult(SearchHit hit) {
-        GetResponse response = client.prepareGet(INDEX_HNJOBS, TYPE_JOB, hit.getId()).get();
+    private JobRPC getResult(Hit<Map> hit) throws IOException {
+        GetResponse<Map> response = client.get(g -> g
+                        .index(INDEX_HNJOBS)
+                        .id(hit.id()),
+                Map.class
+        );
 
         JobRPC job = new JobRPC();
 
-        job.id = hit.getId();
-        job.timestamp = Long.valueOf(response.getSource().get(FIELD_TIMESTAMP).toString());
-        job.author = response.getSource().get(FIELD_AUTHOR).toString();
+        job.id = hit.id();
+        if (response.source() != null) {
+            job.timestamp = Long.valueOf(response.source().get(FIELD_TIMESTAMP).toString());
+            job.author = response.source().get(FIELD_AUTHOR).toString();
+        }
         job.bodyHtml = getBody(hit);
-        job.score = hit.getScore();
+        job.score = hit.score() != null ? hit.score().floatValue() : 0.0f;
 
         return job;
     }
@@ -140,29 +187,41 @@ public class SearchManager {
      * @param hit
      * @return
      */
-    private String getBody(SearchHit hit) {
-        if (hit == null || hit.getSource() == null) {
+    private String getBody(Hit<Map> hit) {
+        if (hit == null || hit.source() == null) {
             return "";
         }
 
-        if (hit.getHighlightFields() == null || hit.getHighlightFields().get(FIELD_BODY_HTML) == null) {
-            return hit.getSource().get(FIELD_BODY_HTML).toString();
+        // Check for highlights first
+        if (hit.highlight() != null && hit.highlight().get(FIELD_BODY_HTML) != null) {
+            List<String> fragments = hit.highlight().get(FIELD_BODY_HTML);
+            StringBuilder body = new StringBuilder();
+            for (String fragment : fragments) {
+                body.append(fragment);
+            }
+            return body.toString();
         }
 
-        Text[] fragments = hit.getHighlightFields().get(FIELD_BODY_HTML).getFragments();
-
-        String body = "";
-        for (Text fragment : fragments) {
-            body += fragment.string();
-        }
-
-        return body;
+        // Return original body if no highlights
+        Object bodyHtml = hit.source().get(FIELD_BODY_HTML);
+        return bodyHtml != null ? bodyHtml.toString() : "";
     }
 
-    private void initEs() throws UnknownHostException {
-        client = TransportClient.builder().build().addTransportAddress(new InetSocketTransportAddress(
-                InetAddress.getByName(System.getenv().getOrDefault(ELASTICSEARCH_HOST, "hnjobs")),
-                Integer.parseInt(System.getenv().getOrDefault(ELASTICSEARCH_PORT, "9300")))
+    private void initEs() throws IOException {
+        String host = System.getenv().getOrDefault(ELASTICSEARCH_HOST, "hnjobs");
+        int port = Integer.parseInt(System.getenv().getOrDefault(ELASTICSEARCH_PORT, "9200"));
+
+        // Create the low-level client
+        restClient = RestClient.builder(
+                new HttpHost(host, port, "http")
+        ).build();
+
+        // Create the transport with a Jackson mapper
+        RestClientTransport transport = new RestClientTransport(
+                restClient, new JacksonJsonpMapper()
         );
+
+        // Create the API client
+        client = new ElasticsearchClient(transport);
     }
 }
