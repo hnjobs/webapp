@@ -21,7 +21,7 @@ spec:
             - name: ELASTICSEARCH_HOST
               value: "192.168.0.4"
             - name: ELASTICSEARCH_PORT
-              value: "7938"
+              value: "7940"
           ports:
             - containerPort: 8080
 ---
