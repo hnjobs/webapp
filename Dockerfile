@@ -1,4 +1,4 @@
-FROM jetty:9-jdk8
+FROM jetty:10.0-jdk21
 
 ADD target/HnJobs-1.0-SNAPSHOT.war webapps/ROOT.war
 
