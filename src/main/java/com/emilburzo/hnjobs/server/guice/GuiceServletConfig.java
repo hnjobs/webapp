@@ -1,6 +1,8 @@
 package com.emilburzo.hnjobs.server.guice;
 
 import com.emilburzo.hnjobs.server.filter.NoCacheFilter;
+import com.emilburzo.hnjobs.server.health.LiveServlet;
+import com.emilburzo.hnjobs.server.health.ReadyServlet;
 import com.emilburzo.hnjobs.server.rpc.ServiceImpl;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
@@ -18,6 +20,10 @@ public class GuiceServletConfig extends GuiceServletContextListener {
             protected void configureServlets() {
                 // filters
                 filter("/*").through(NoCacheFilter.class);
+
+                // health checks
+                serve("/healthz/live").with(LiveServlet.class);
+                serve("/healthz/ready").with(ReadyServlet.class);
 
                 // GWT RPC
                 serve(ServiceImpl.ENDPOINT).with(ServiceImpl.class);

@@ -10,4 +10,4 @@ FROM jetty:10.0-jdk21
 
 COPY --from=build /build/target/HnJobs-1.0-SNAPSHOT.war webapps/ROOT.war
 
-HEALTHCHECK CMD curl --fail http://localhost:8080/hnjobs/hnjobs.nocache.js || exit 1
+HEALTHCHECK CMD curl --fail http://localhost:8080/healthz/live || exit 1
