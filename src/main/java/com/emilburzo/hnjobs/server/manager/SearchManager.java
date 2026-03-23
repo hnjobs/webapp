@@ -28,11 +28,15 @@ import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import java.io.IOException;
 import java.util.Date;
 import java.util.logging.Logger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class SearchManager {
 
     private static final String ELASTICSEARCH_HOST = "ELASTICSEARCH_HOST";
     private static final String ELASTICSEARCH_PORT = "ELASTICSEARCH_PORT";
+
+    private static final Pattern ATTR_URL_PATTERN = Pattern.compile("((?:href|src)=\")(.*?)(\")");
 
     private static final String INDEX_HNJOBS = "hnjobs";
     private static final String INDEX_SEARCH_LOG = "hnjobs_search_log";
@@ -173,7 +177,21 @@ public class SearchManager {
             body += fragment.string();
         }
 
-        return body;
+        return fixHighlightedUrls(body);
+    }
+
+    /**
+     * Strips highlight tags from inside href/src attributes so URLs don't break
+     */
+    private String fixHighlightedUrls(String html) {
+        Matcher matcher = ATTR_URL_PATTERN.matcher(html);
+        StringBuffer sb = new StringBuffer();
+        while (matcher.find()) {
+            String url = matcher.group(2).replace("<em>", "").replace("</em>", "");
+            matcher.appendReplacement(sb, Matcher.quoteReplacement(matcher.group(1) + url + matcher.group(3)));
+        }
+        matcher.appendTail(sb);
+        return sb.toString();
     }
 
     private void initEs() {
