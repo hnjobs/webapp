@@ -142,8 +142,9 @@ public class SearchWidget extends SimplePanel {
             return;
         }
 
-        // save the search query in the URL fragment
-        History.newItem(value);
+        // save the search query in the URL fragment (false = don't fire ValueChangeEvent,
+        // since we're already executing the search from here)
+        History.newItem(value, false);
 
         // indicate to the user that we haven't frozen
         showProgressBar();
