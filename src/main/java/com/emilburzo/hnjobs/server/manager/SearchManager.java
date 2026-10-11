@@ -5,8 +5,6 @@ import com.emilburzo.hnjobs.shared.rpc.SearchLogRPC;
 import com.emilburzo.hnjobs.shared.rpc.SearchResultRPC;
 import com.google.gson.Gson;
 import org.apache.http.HttpHost;
-import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -27,6 +25,7 @@ import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 
 import java.io.IOException;
 import java.util.Date;
+import java.util.Map;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -140,15 +139,15 @@ public class SearchManager {
         return rpc;
     }
 
-    private JobRPC getResult(SearchHit hit) throws IOException {
-        GetRequest getRequest = new GetRequest(INDEX_HNJOBS, hit.getId());
-        GetResponse response = client.get(getRequest, RequestOptions.DEFAULT);
+    private JobRPC getResult(SearchHit hit) {
+        // the search hit already carries the whole _source, no need for a GET per hit
+        Map<String, Object> source = hit.getSourceAsMap();
 
         JobRPC job = new JobRPC();
 
         job.id = hit.getId();
-        job.timestamp = Long.valueOf(response.getSource().get(FIELD_TIMESTAMP).toString());
-        job.author = response.getSource().get(FIELD_AUTHOR).toString();
+        job.timestamp = Long.valueOf(source.get(FIELD_TIMESTAMP).toString());
+        job.author = source.get(FIELD_AUTHOR).toString();
         job.bodyHtml = getBody(hit);
         job.score = hit.getScore();
 
