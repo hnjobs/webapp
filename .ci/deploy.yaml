@@ -24,6 +24,12 @@ spec:
               value: "9200"
           ports:
             - containerPort: 8080
+          # Keep serving until the ingress has dropped this pod's endpoint; without
+          # it, a rollout answers some requests with a 502 or a 504.
+          lifecycle:
+            preStop:
+              sleep:
+                seconds: 5
           livenessProbe:
             httpGet:
               path: /healthz/live
